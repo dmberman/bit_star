@@ -1,128 +1,86 @@
-import Queue
-import random
-
-'''
-Source from: https://en.wikipedia.org/wiki/A*_search_algorithm
-'''
- 
+from heapq import heappush, heappop
+import time
+import pdb
 class AStarPlanner(object):
     
     def __init__(self, planning_env, visualize):
         self.planning_env = planning_env
         self.visualize = visualize
-        self.nodes = dict() # holds the distance from start
+        self.nodes = dict()
+
 
     def Plan(self, start_config, goal_config):
-
+    	start_time = time.time()
         plan = []
+        
+    # TODO: Here you will implement the AStar planner
+    #  The return path should be a numpy array
+    #  of dimension k x n where k is the number of waypoints
+    #  and n is the dimension of the robots configuration space
+        if self.visualize and hasattr(self.planning_env, "InitializePlot"):
+            self.planning_env.InitializePlot()
 
-        # TODO: Here you will implement the AStar planner
-        #  The return path should be a numpy array
-        #  of dimension k x n where k is the number of waypoints
-        #  and n is the dimension of the robots configuration space
 
-        if(self.visualize): # initialize plot
-            self.planning_env.InitializePlot(goal_config)
- 
-        # implement a priority queue
         start_id = self.planning_env.discrete_env.ConfigurationToNodeId(start_config)
         goal_id = self.planning_env.discrete_env.ConfigurationToNodeId(goal_config)
-        class Node(object):
-            def __init__(self, node_id, config, g_score, goal_id, planning_env, distance_from_start = float("inf")):
-                self.node_id = node_id
-                self.config = config
-                self.g_score = g_score
-                self.h_score = planning_env.ComputeHeuristicCost(node_id, goal_id)
-                self.f_score = self.g_score + self.h_score
-                self.distance_from_start = distance_from_start
-            def __cmp__(self, other):
-                return cmp(self.f_score, other.f_score)
 
-        priority_queue = Queue.PriorityQueue()
-
-        # Open queue
-        priority_queue.put(Node(start_id, start_config, 0, goal_id, self.planning_env, 0)) # input start node to queue
-
-        # Initialize lists
-        closed_set = []
-        open_set = []
-        g_scores = dict()
-        f_scores = dict()      
-        current_id = start_id
-        open_set.append(start_id)
-        g_scores[start_id] = 0
-        f_scores[start_id] = self.planning_env.ComputeHeuristicCost(start_id, goal_id)
-
-        # initialize flags and counters
-        found_goal = False
-
-        while len(open_set) != 0:
-            # Get the element with the lowest f_score
-            minn = float("inf")
-            min_node = None
-            min_idx = 0
-            for i in xrange(0, len(open_set)):
-                try:
-                    f_score = f_scores[open_set[i]]
-                except (KeyError):
-                    pass
-                if f_score < minn:
-                    minn = f_score
-                    min_node = open_set[i]
-                    min_idx = i
-            curr_id = min_node
-
-            # Remove element from open set
-            open_set.pop(min_idx)
-
-            # Check to see if you are at goal
-            if(curr_id == goal_id):
-                found_goal = True
-                break 
-
-            # Add node to closed set
-            if(curr_id not in closed_set):   
-                closed_set.append(curr_id)
-
-            # Find a non-visited successor to the current_id
+        openlist = []
+        visited ={}
+        dist = 0 
+        hrstc = self.planning_env.ComputeHeuristicCost(start_id,goal_id)
+        cost = dist + hrstc
+        heappush(openlist, (cost, dist, hrstc, start_id, None))
+        found = False
+        backpointer = {}
+        n=0
+        while not found:
+            curr = heappop(openlist)
+            old_dist = curr[1]
+            curr_id = curr[3]
+            if curr_id == goal_id:
+                backpointer[curr_id] = curr[4]
+                found = True
+                path_length = old_dist
+                break
+            n=n+1
+            if curr_id in visited:
+                continue
+                
+            visited[curr_id] = 1
+            backpointer[curr_id] = curr[4]
+            #pdb.set_trace()
             successors = self.planning_env.GetSuccessors(curr_id)
             for successor in successors:
-                if(successor in closed_set):
-                    continue
-                else:
-                    # Calculate the tentative g score
-                    successor_config = self.planning_env.discrete_env.NodeIdToConfiguration(successor)
-                    g_score = g_scores[curr_id] + self.planning_env.ComputeDistance(curr_id, successor)
-                    if successor not in open_set:
-                        # Add to open set
-                        open_set.append(successor)
-                    elif g_score >= g_scores[successor]:
-                        continue
+                if successor not in visited:
+                    dist = old_dist +  self.planning_env.ComputeDistance(curr_id, successor)
+                    hrstc = self.planning_env.ComputeHeuristicCost(successor,goal_id)
+                    cost = dist + hrstc
+                    temp_tuple = (cost,dist,hrstc,successor,curr_id)
+                    heappush(openlist, temp_tuple)
+                    if self.visualize: 
+                        s = self.planning_env.discrete_env.NodeIdToConfiguration(successor)
+                        c = self.planning_env.discrete_env.NodeIdToConfiguration(curr_id)
+                        self.planning_env.PlotEdge(c,s)
 
-                    # Update g and f scores
-                    g_scores[successor] = g_score
-                    f_scores[successor] = g_score + self.planning_env.ComputeHeuristicCost(successor, goal_id) 
+        # Shortest Path
+        path = []
+        path.append(self.planning_env.discrete_env.NodeIdToConfiguration(goal_id))
+        element = backpointer[goal_id]
+        while element is not None:
+            path.append(self.planning_env.discrete_env.NodeIdToConfiguration(element))
+            element = backpointer[element]
+        
 
-                    # Store the parent and child
-                    self.nodes[successor] = curr_id
-
-                    if self.visualize: # Plot the edge
-                        pred_config = self.planning_env.discrete_env.NodeIdToConfiguration(curr_id)
-                        succ_config = self.planning_env.discrete_env.NodeIdToConfiguration(successor)
-                        self.planning_env.PlotEdge(pred_config, succ_config)  
-
-        if found_goal:
-            # Find the path in reverse from goal
-            curr_id = goal_id
-            while(curr_id != start_id):
-                curr_confg = self.planning_env.discrete_env.NodeIdToConfiguration(curr_id)
-                plan.append(curr_confg)
-                curr_id = self.nodes[curr_id] # Get the vertex opposite the edge of the current id
-
-            # Whenever the current id is the start id, append start id
-            plan.append(start_config)
-
-            return plan[::-1], len(self.nodes) # reverse the plan
-
-        else:
-            return [] # Failure
+        if self.visualize: 
+            for i in range(len(path) - 1):
+                self.planning_env.PlotRedEdge(path[i],path[i+1])    
+            
+        plan = path[::-1]
+        print "number of nodes"
+        print n
+        print "time (in seconds):" 
+        print time.time()- start_time
+        print "path path_length"
+        print path_length
+        #print plan
+        return plan

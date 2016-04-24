@@ -7,7 +7,7 @@ class RRTConnectPlanner(object):
         self.planning_env = planning_env
         self.visualize = visualize
         self.vertex_queue = [] # self.vertex_queue = node_id
-        self.edge_queue = [] # self.edge_queue = (sid, eid)
+        self.edge_queue = [] # self.edge_queue = (sid, eid, costToCome)
         self.samples = dict() # self.edge_queue[node_id] = config
         self.tree = RRTTree(self.planning_env, start_config) # initialize tree
         self.g_scores = dict() # self.g_scores[node_id] = g_score
@@ -45,15 +45,32 @@ class RRTConnectPlanner(object):
             if len(vertex_queue) == 0 and len(edge_queue) == 0:
                 # Prune the tree
                 self.Prune(self.g_scores[self.goal_id])
-                # Add values to the samples
+                # Add values to the samples. m = number of samples to add (can be rejection or sometimes direct sampling)
                 self.Sample(m=10)
-                # Make the old vertices the new vertices
+                # Make the old vertices the new vertices (only consider connections to new states)
                 self.v_old = self.tree.vertices
                 # Change the size of the radius
                 self.r = radius(len(self.tree.vertices) + len(self.samples))
 
             # Expand the best vertices until an edge is better than the vertex
 
+            #while BestQueueValue(Qv) < BestQueueValue(Qe): ExpandVertex(Qv)
+
+            #Compute Lowest Cost in Qe
+            for edge in self.edge_queue.iteritems():
+                cost = edge[3]
+                if cost < bestQeValue:
+                    bestQeValue = cost
+
+
+            BestQeValue = self.planning_env.ComputeDistance(self.start_id, vid)
+            while
+
+    '''
+    Function to compute the total cost (f+g) of an edge
+    '''
+    def EdgeCost(self, eid):
+        pass
 
 
     '''
@@ -64,7 +81,7 @@ class RRTConnectPlanner(object):
             # Remove vertex from vertex queue
             self.vertex_queue.remove(vid)
 
-            # Get the current configure from the vertex 
+            # Get the current configuration from the vertex
             curr_config = numpy.array(self.tree.vertices[vid])
 
             # Get a nearest value in vertex for every one in samples where difference is less than the radius
@@ -163,6 +180,8 @@ class RRTConnectPlanner(object):
         min_radius = eta * 2.0 * pow((1.0 + 1.0/dimension) * (space_measure/unit_ball_measure), 1.0/dimension) 
         return min_radius * pow(numpy.log(q)/q, 1/dimension) 
 
+
+    #**************************Seems Sketch
     def GetNearestSample(self, config):
         dists = dict()
         for index in self.samples.keys():
